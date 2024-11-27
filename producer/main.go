@@ -1,44 +1,36 @@
-# gokafka
+package main
 
-This is simple example of Golang and Kafka Integration
+import (
+	"encoding/json"
+	"log"
+	"os"
+	"sync"
 
-## How to run
+	conf "gokafka/conf"
 
-1.Run the docker compose 
-```docker
-docker compose up -d
-```
+	"github.com/IBM/sarama"
+)
 
-2.Create the topic on Kafka 
-```docker
-docker exec -it kafka-like /bin/bash
-```
-Then create a topic (example : user-topic)
-```bash
-kafka-topics.sh --create --topic user-topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
-```
-Check the topic has been created?
-```
-kafka-topics.sh --list --bootstrap-server localhost:9092
-```
-3.Run `go mod tidy` to get the libraries that needed
+type Message struct {
+	UserId int    `json:"user_id"`
+	Name   string `json:"name"`
+	Score  int    `json:"score"`
+}
 
-4.Run the customer code :
-```
-cd customer
-go run customer.go
-```
+func main() {
+	brokers := []string{conf.Host}
+	producer, err := sarama.NewSyncProducer(brokers, nil)
+	if err != nil {
+		log.Fatalln("Error occured when starting Sarama producer:", err)
+		os.Exit(1)
+	}
 
-5.Run the producer code :
-```
-cd producer
-go run producer.go
-```
+	// This is fake/dummy data
+	userId := [5]int{100001, 100002, 100003, 100004, 100005}
+	name := [5]string{"John", "Doe", "Anderson", "Andre", "Michelle"}
+	score := [5]int{90, 80, 50, 70, 40}
 
-## Concurrency Pattern
-The producer.go using Pipeline Concurrency Pattern to handle the message. We can see the code : 
-```go
-chnListUser := make(chan Message)
+	chnListUser := make(chan Message)
 	// Get the message then send into `chnListUser`
 	go func() {
 		defer close(chnListUser)
@@ -94,4 +86,6 @@ chnListUser := make(chan Message)
 			log.Println("Message sent!")
 		}
 	}()
-```
+
+	wg.Wait()
+}
