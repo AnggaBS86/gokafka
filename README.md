@@ -38,64 +38,61 @@ go run producer.go
 ## Concurrency Pattern
 The producer.go using Pipeline Concurrency Pattern to handle the message. We can see the code : 
 ```go
-chnListUser: = make(chan Message)
-// Get the message then send into `chnListUser`
-go func() {
-    defer close(chnListUser)
-    for i: = 0;
-    i < len(userId);
-    i++{
-        message: = Message {
-            UserId: userId[i],
-            Name: name[i],
-            Score: score[i],
-        }
+    // Get the message then send into `chnListUser`
+	go func() {
+		defer close(chnListUser)
+		for i := 0; i < len(userId); i++ {
+			message := Message{
+				UserId: userId[i],
+				Name:   name[i],
+				Score:  score[i],
+			}
 
-            chnListUser < -message
-    }
-}()
+			chnListUser <- message
+		}
+	}()
 
-chnFilterPassedScore: = make(chan[] byte, len(userId))
-// Proceed the `chnListUser` then filter the Score > 50
-// Assign to channel `chnFilterPassedScore`
-go func() {
-    defer close(chnFilterPassedScore)
-    for val: = range chnListUser {
-        if val.Score > 50 {
-            jsonMessage, err: = json.Marshal(val)
-            chnFilterPassedScore < -jsonMessage
+	chnFilterPassedScore := make(chan []byte, len(userId))
+	// Proceed the `chnListUser` then filter the Score > 50
+	// Assign to channel `chnFilterPassedScore`
+	go func() {
+		defer close(chnFilterPassedScore)
+		for val := range chnListUser {
+			if val.Score > 50 {
+				jsonMessage, err := json.Marshal(val)
+				chnFilterPassedScore <- jsonMessage
 
-            if err != nil {
-                log.Fatalln(err.Error())
-                os.Exit(1)
-            }
-        }
-    }
-}()
+				if err != nil {
+					log.Fatalln(err.Error())
+					os.Exit(1)
+				}
+			}
+		}
+	}()
 
-wg: = sync.WaitGroup {}
+	wg := sync.WaitGroup{}
 
-// Get the latest/final value that has been filtered
-// Send to Kafka producer
-wg.Add(1)
-go func() {
-    defer wg.Done()
-    for k: = range chnFilterPassedScore {
-        msg: = & sarama.ProducerMessage {
-            Topic: conf.TopicName,
-            Value: sarama.StringEncoder(k),
-        }
+	// Get the latest/final value that has been filtered
+	// Send to Kafka producer
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for k := range chnFilterPassedScore {
+			msg := &sarama.ProducerMessage{
+				Topic: conf.TopicName,
+				Value: sarama.StringEncoder(k),
+			}
 
-            log.Println("Sending message :", msg)
-        _,
-        _,
-        err = producer.SendMessage(msg)
-        if err != nil {
-            log.Fatalln(err.Error())
-            os.Exit(1)
-        }
+			log.Println("Sending message :", msg)
+			_, _, err = producer.SendMessage(msg)
+			if err != nil {
+				log.Fatalln(err.Error())
+				os.Exit(1)
+			}
 
-        log.Println("Message sent!")
-    }
-}()
+			log.Println("Message sent!")
+		}
+	}()
+
+	wg.Wait()
 ```
